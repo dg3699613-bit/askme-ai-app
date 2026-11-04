@@ -48,6 +48,7 @@
       }
       .iconbtn:active{background:var(--surface2);}
       .brand{display:flex; align-items:center; gap:9px; min-width:0; flex:1 1 auto;}
+      .brand>div{min-width:0;}
       .brand .logo{flex:0 0 auto;}
       .brand-name{
         font-family:"Baloo 2","Hind",sans-serif; font-weight:800; font-size:21px; line-height:1.05;
@@ -180,11 +181,11 @@
       .attachpreview button{font-size:16px; color:var(--ink-soft); padding:2px 4px;}
       .inputrow{display:flex; align-items:flex-end; gap:8px;}
       .inputbox{
-        flex:1; display:flex; align-items:flex-end; background:var(--surface);
+        flex:1 1 auto; min-width:0; display:flex; align-items:flex-end; background:var(--surface);
         border:1.5px solid var(--line); border-radius:24px; padding:4px 6px 4px 4px;
       }
       .inputbox textarea{
-        flex:1; border:none; outline:none; resize:none; background:transparent; color:var(--ink);
+        flex:1; min-width:0; width:100%; border:none; outline:none; resize:none; background:transparent; color:var(--ink);
         font-family:inherit; font-size:16px; line-height:1.4; max-height:110px; padding:9px 6px 9px 10px;
       }
       .roundbtn{
@@ -262,7 +263,9 @@
         .iconbtn{width:36px; height:36px; font-size:18px;}
         .brand{gap:6px;}
         .brand-name{font-size:18.5px;}
-        .brand-tag{font-size:10.5px;}
+        .brand-tag{font-size:10px;}
+        .inputrow{gap:6px;}
+        .roundbtn{width:44px; height:44px;}
         .langtoggle button{padding:6px 10px; font-size:12.5px;}
       }
       @media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms !important; transition-duration:.01ms !important;} }
@@ -280,10 +283,6 @@
             <div class="brand-tag">सवाल आपका, जवाब हमारा।</div>
           </div>
         </div>
-        <div class="langtoggle" role="group" aria-label="Language" style="display:none">
-          <button id="langHi" class="on">हिंदी</button>
-          <button id="langEn">EN</button>
-        </div>
         <button class="iconbtn" id="newBtn" aria-label="New chat">＋</button>
         <button class="iconbtn" id="gearBtn" aria-label="Settings">⚙️</button>
       </header>
@@ -294,10 +293,10 @@
       <!-- Composer -->
       <footer class="composer">
         <div class="photorow">
-          <button class="phototoggle" id="photoToggle">🖼 <span data-i18n="photoMode">Photo banao</span></button>
+          <button class="phototoggle" id="photoToggle">🖼 <span data-i18n="photoMode">Create Image</span></button>
           <div class="attachpreview" id="attachPreview">
             <img id="attachThumb" alt="" />
-            <span data-i18n="photoAttached">Photo laga diya</span>
+            <span data-i18n="photoAttached">Photo attached</span>
             <button id="attachRemove" aria-label="Remove">✕</button>
           </div>
         </div>
@@ -305,7 +304,7 @@
           <button class="attachbtn" id="attachBtn" aria-label="Attach photo">📎</button>
           <input type="file" id="fileInput" accept="image/*" hidden />
           <div class="inputbox">
-            <textarea id="input" rows="1" data-i18n-ph="placeholder" placeholder="AskMe से कुछ भी पूछो..."></textarea>
+            <textarea id="input" rows="1" data-i18n-ph="placeholder" placeholder="Ask AskMe anything..."></textarea>
           </div>
           <button class="roundbtn mic" id="micBtn" aria-label="Voice input">🎤</button>
           <button class="roundbtn send" id="sendBtn" aria-label="Send">➤</button>
@@ -441,7 +440,7 @@
         untitled:"Nayi chat",
         chips:["🐒 Bandar ka photo bana do","📖 Bachon ke liye ek kahani sunao","🌦 Kal mausam kaisa rahega?","💡 Time management ke tips do"]
       },
-      en:{ photoMode:"Photo banao", photoAttached:"Photo attached", placeholder:"Ask AskMe anything...", photoPlaceholder:"Write for a photo — your message becomes the photo…", photoModeOffQ:"That was a question — photo mode off, answering instead",
+      en:{ photoMode:"Create Image", photoAttached:"Photo attached", placeholder:"Ask AskMe anything...", photoPlaceholder:"Describe the image you want…", photoModeOffQ:"That was a question — photo mode off, answering instead",
         newChat:"New Chat", yourChats:"Your chats", noChats:"No chats yet",
         settings:"Settings", model:"Model", darkMode:"Dark mode", darkHint:"Easy on the eyes",
         modeLabel:"Where answers come from", byokMode:"Your Key (BYOK)",
@@ -1305,17 +1304,13 @@
     });
     syncModeUI();
 
-    /* ---------- Language toggle ---------- */
+    /* ---------- Language (system English-only; toggle hata diya gaya hai) ---------- */
     function applyLang(){
       document.querySelectorAll("[data-i18n]").forEach(function(el){ el.textContent = t(el.getAttribute("data-i18n")); });
       inputEl.placeholder = t("placeholder");
-      $("langHi").classList.toggle("on", state.lang==="hi");
-      $("langEn").classList.toggle("on", state.lang==="en");
-      document.documentElement.lang = state.lang === "hi" ? "hi" : "en";
+      document.documentElement.lang = "en";
       renderAll();
     }
-    $("langHi").addEventListener("click", function(){ state.lang = "hi"; savePref(); applyLang(); });
-    $("langEn").addEventListener("click", function(){ state.lang = "en"; savePref(); applyLang(); });
 
     /* ---------- Welcome ---------- */
     if(state.welcomed){ $("welcome").classList.add("hide"); }
