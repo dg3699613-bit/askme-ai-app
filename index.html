@@ -512,7 +512,12 @@
       var c = { id: uid(), title:"", createdAt: Date.now(), pendingSubject:"", messages: [] };
       chats.unshift(c); currentId = c.id; saveChats(); return c;
     }
-    if(!chats.length) newChat(); else currentId = chats[0].id;
+    /* Owner order 2026-11-04: app band karke kholne par hamesha HOME (nayi khali chat) khule —
+       purani chat apne aap na khule; purani chats drawer me saved rahen. Upar wali chat
+       pehle se khali ho to wahi reuse hogi, taaki khali chats ka dher na lage. */
+    if(!chats.length) newChat();
+    else if(chats[0].messages && chats[0].messages.length) newChat();
+    else currentId = chats[0].id;
 
     /* ---------- DOM ---------- */
     var $ = function(id){ return document.getElementById(id); };
