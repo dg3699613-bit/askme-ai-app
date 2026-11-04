@@ -1142,7 +1142,47 @@
       routeUserText(c, text);
     }
 
+    /* Chhoti baatein (hello / kaise ho / thanks / bye) — owner ki speed demand (2026-11-04):
+       inka jawab phone par hi turant banta hai, server ka 5-10 sec wait bilkul nahi.
+       Jawab user ki hi bhasha + script me (mirror rule yahan bhi lagu). */
+    function smallTalkReply(text){
+      var raw = (text || "").trim();
+      if(!raw || raw.length > 30) return null;
+      var low = raw.toLowerCase().replace(/[!.,?]+$/,"").trim();
+      var clean = raw.replace(/[!।.,?]+$/,"").trim();
+      var deva = /[\u0900-\u097F]/.test(raw);
+      var greet = /^(hello|hii+|hi|hey+|hola|namaste|namaskar|namastey|good morning|good afternoon|good evening|gm)$/.test(low)
+        || /^(नमस्ते|नमस्कार|हैलो|हेलो|हाय)$/.test(clean);
+      var howru = /^(how are you|how r you|how are u|kaise ho|kya haal hai)$/.test(low)
+        || /^(कैसे हो|क्या हाल है)$/.test(clean);
+      var thanks = /^(thanks|thank you|thank u|thnx|shukriya|dhanyavad)$/.test(low)
+        || /^(धन्यवाद|शुक्रिया)$/.test(clean);
+      var bye = /^(bye|goodbye|good night|alvida|bye bye)$/.test(low)
+        || /^(अलविदा|शुभ रात्रि)$/.test(clean);
+      if(!greet && !howru && !thanks && !bye) return null;
+      if(deva){
+        if(howru) return "मैं बढ़िया हूँ, धन्यवाद! आप सुनाइए — क्या मदद कर सकता हूँ?";
+        if(thanks) return "आपका स्वागत है! और कुछ चाहिए तो बस बोल दीजिए।";
+        if(bye) return "अलविदा! फिर मिलेंगे। कोई काम हो तो AskMe हमेशा यहाँ है।";
+        return "नमस्ते! मैं AskMe AI हूँ। बोलिए, क्या मदद कर सकता हूँ? पढ़ाई, जानकारी, photo या video — बस कह दीजिए।";
+      }
+      if(/(namaste|namaskar|kaise|haal|shukriya|dhanyavad|alvida)/.test(low)){
+        if(howru) return "Main badhiya hoon, thank you! Aap sunao — kya madad kar sakta hoon?";
+        if(thanks) return "Welcome! Aur kuch chahiye to bas bol do.";
+        if(bye) return "Bye! Phir milenge — kuch kaam ho to AskMe hamesha yahan hai.";
+        return "Namaste! Main AskMe AI hoon. Bolo, kya madad kar sakta hoon? Padhai, jaankari, photo ya video — bas keh do.";
+      }
+      if(howru) return "I am doing great, thank you! How can I help you today?";
+      if(thanks) return "You're welcome! Anything else, just ask.";
+      if(bye) return "Goodbye! Come back anytime — AskMe is always here.";
+      return "Hello! I am AskMe AI. Ask me anything — studies, stories, information — or tell me to create an image or a video.";
+    }
+
     function routeUserText(c, text){
+      /* 0z) Chhoti baat hai to turant local jawab — server bilkul nahi */
+      var st = smallTalkReply(text);
+      if(st){ pushMsg(c, { role:"assistant", text: st }); pumpQueue(); return; }
+
       /* 0a) Video ki maang — hamesha asal video flow, kabhi sirf text ka wada nahi */
       var vr = parseVideoRequest(text);
       if(vr && vr.kind === "video"){ doVideo(c, vr.prompt); return; }
@@ -1193,6 +1233,13 @@
       if(isQuestion(text)){
         var cq = candidateSubject(text);
         if(cq){ c.pendingSubject = cq; saveChats(); }
+        doChat(c, null); return;
+      }
+
+      /* 3a) Chhota message (<=40 akshar) — router ka ~5 sec wait nahi, seedha chat */
+      if(text.trim().length <= 40){
+        var csh = candidateSubject(text);
+        if(csh){ c.pendingSubject = csh; saveChats(); }
         doChat(c, null); return;
       }
 
@@ -1327,6 +1374,8 @@
 
     /* ---------- Init ---------- */
     applyLang();
+    /* Server ko app khulte hi jaga do (Render free tier so jata hai) — pehla jawab tez aayega */
+    try{ fetch(API + "/health").catch(function(){}); }catch(e){}
     </script>
   </body>
 </html>
