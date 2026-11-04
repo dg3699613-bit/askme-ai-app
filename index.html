@@ -422,6 +422,8 @@
         videoMaking:"Video ban raha hai… ", videoReady:"Video taiyaar hai ✓",
         videoUnsupported:"Is phone par video banana support nahi hai — video is not supported on this phone.",
         videoFailed:"Video nahi ban paya — phir se try karo 🙏",
+        videoAskTopic:"Theek hai, video bana deta hoon — bas topic bata do: kis cheez ka video chahiye? (jaise — road par daudta hua ladka)",
+        videoStarting:"Video bana raha hoon — pehle photo banegi, phir usi se 10 sec ka video. Thoda rukna pad sakta hai 🎬",
         fullSize:"Full size kholo",
         lbHint:"Photo ko long-press karke “Download image” bhi kar sakte ho.",
         welcomeSub:"Kuch bhi poochho — Hindi, Hinglish ya English me. Photo banana ho to bas likh do, photo yahin ban jayegi.",
@@ -449,6 +451,8 @@
         videoMaking:"Making video… ", videoReady:"Video is ready ✓",
         videoUnsupported:"Is phone par video banana support nahi hai — video is not supported on this phone.",
         videoFailed:"Video could not be made — please try again 🙏",
+        videoAskTopic:"OK, I will make the video — just tell me the topic: what should the video be about? (for example — a boy running on a road)",
+        videoStarting:"Making your video — first the photo, then a 10-sec video from it. This can take a moment 🎬",
         fullSize:"Open full size",
         lbHint:"You can also long-press the photo and choose “Download image”.",
         welcomeSub:"Ask anything — in Hindi, Hinglish or English. Want a photo? Just say it, and the photo will be made right here.",
@@ -874,6 +878,49 @@
       return subj && subj.length >= 2 ? subj : "";
     }
 
+    /* ============ Video intent (2026-11-04 bug) ============
+       "Video banane ko bol raha hu" chat me chala jata tha aur AI sirf text me
+       "video bana raha hu" bol deta tha — video kabhi banta hi nahi tha.
+       Ab video ki maang hamesha asal flow me jayegi: photo -> 10-sec video. */
+    var VIDEO_RE = /(video|videos|reel|reels|clip|clips|वीडियो|विडियो)/i;
+    function videoSubject(text){
+      var s = " " + String(text || "").trim().replace(/[?!।.]+$/,"") + " ";
+      s = s.replace(/\b(video|videos|reel|reels|clip|clips)\b/gi, " ").replace(/(वीडियो|विडियो)/g, " ");
+      s = extractSubject(s);
+      var filler = { banane:1, bana:1, banao:1, banado:1, make:1, create:1, generate:1, draw:1, design:1, dikha:1, bol:1, raha:1, rahi:1, hu:1, hun:1, hoon:1, mujhe:1, mere:1, liye:1, chahiye:1, ko:1, kar:1, kardo:1, hai:1 };
+      var toks = s.split(/\s+/).filter(function(w){ return w && !filler[w.toLowerCase()]; });
+      var out = toks.join(" ").replace(/^(of|for)\s+/i, "").trim();
+      return out;
+    }
+    /* returns {kind:'video', prompt} | {kind:'video-need-topic'} | null */
+    function parseVideoRequest(text){
+      var s = String(text || "").trim();
+      if(!VIDEO_RE.test(s)) return null;
+      if(isQuestion(s)) return null;               /* video par sawal = chat */
+      if(/(script|kahani|story|essay|कहानी)/i.test(s) && !/(banao|bana do|make|create|बनाओ)/i.test(s)) return null;
+      var subj = videoSubject(s);
+      if(subj && subj.length >= 3 && subj.split(/\s+/).length >= 1 && !/^(ha|haan|han|ok|yes)$/i.test(subj)){
+        return { kind:"video", prompt: subj };
+      }
+      return { kind:"video-need-topic" };
+    }
+    function legacyVideoSubject(c){
+      /* pichhle ~7 messages me: assistant ke video-wade ke pehle wala user topic */
+      var sawVideo = false;
+      var start = Math.max(0, c.messages.length - 8);
+      for(var i = c.messages.length - 1; i >= start; i--){
+        var m = c.messages[i];
+        if(!m) continue;
+        if(m.role === "assistant" && m.text && /video/i.test(m.text)) sawVideo = true;
+        else if(sawVideo && m.role === "user"){
+          var subj = videoSubject(m.text || "");
+          if(subj && subj.length >= 3) return subj;
+          if(m.text && !VIDEO_RE.test(m.text) && m.text.trim().length >= 3) return extractSubject(m.text);
+        }
+      }
+      return "";
+    }
+
     /* Sawal-guard: a plain question must NEVER become a photo (2026-11-04 bug:
        photo-mode me "Aaj kis kis ka match hai?" bhejnewale ko random photo mila).
        Asli photo ki maang (photo + banane wala shabd saath me) sawal nahi hai. */
@@ -1003,11 +1050,32 @@
         pushMsg(c, { role:"assistant", error:true });
       });
     }
+    function doVideo(c, prompt){
+      /* Text-only "video bana raha hu" wala jhoota wada band (2026-11-04 bug):
+         video ki maang par pehle photo banti hai, phir usi photo se on-device
+         10-sec video apne aap banta hai — sirf baat nahi, asal video aata hai. */
+      busy = true; lastAction = { type:"video", prompt: prompt };
+      c.awaitingVideoTopic = false; c.pendingVideoSubject = ""; saveChats();
+      pushMsg(c, { role:"assistant", text: t("videoStarting") });
+      showTyping("image");
+      askmeImage(prompt).then(function(url){
+        hideTyping(); busy = false;
+        pushMsg(c, { role:"assistant", image: url, imgPrompt: prompt });
+        var progress = makeProgressEl(msgsEl);
+        startVideoGeneration(url, progress);
+      }).catch(function(){
+        hideTyping(); busy = false;
+        c.pendingVideoSubject = prompt; /* "ha banao" par yahi video phir banega */
+        saveChats();
+        pushMsg(c, { role:"assistant", error:true });
+      });
+    }
     function retryLast(errMsg){
       var c = curChat(); if(!c || busy) return;
       c.messages = c.messages.filter(function(m){ return m !== errMsg; });
       saveChats(); renderMessages();
       if(lastAction && lastAction.type==="image") doImage(c, lastAction.prompt);
+      else if(lastAction && lastAction.type==="video") doVideo(c, lastAction.prompt);
       else doChat(c, null);
     }
     function prevUserText(c){
@@ -1040,6 +1108,32 @@
       pushMsg(c, { role:"user", text: text });
       inputEl.value = ""; autoGrow(); setTitle(c); renderChatList();
 
+      /* 0a) Video ki maang — hamesha asal video flow, kabhi sirf text ka wada nahi */
+      var vr = parseVideoRequest(text);
+      if(vr && vr.kind === "video"){ doVideo(c, vr.prompt); return; }
+      if(vr && vr.kind === "video-need-topic"){
+        c.awaitingVideoTopic = true; saveChats();
+        pushMsg(c, { role:"assistant", text: t("videoAskTopic") });
+        return;
+      }
+      /* 0b) Pichhle step me video ka topic manga gaya tha — ye message wahi topic hai */
+      if(c.awaitingVideoTopic){
+        if(isAffirmation(text) && c.pendingVideoSubject){ doVideo(c, c.pendingVideoSubject); return; }
+        if(!isQuestion(text)){
+          var vsubj = videoSubject(text);
+          if(vsubj && vsubj.length >= 3){ doVideo(c, vsubj); return; }
+        }
+        c.awaitingVideoTopic = false; saveChats();
+      }
+      /* 0c) Video topic pending hai aur user ne "ha banao" kaha */
+      if(c.pendingVideoSubject && isAffirmation(text)){ doVideo(c, c.pendingVideoSubject); return; }
+      /* 0d) Purani chats (fix se pehle ki): assistant ne text me video ka wada kiya tha
+             aur user ab "ha banao" keh raha hai — topic history se uthakar asal video banao */
+      if(isAffirmation(text)){
+        var lv = legacyVideoSubject(c);
+        if(lv){ doVideo(c, lv); return; }
+      }
+
       /* 0) Photo-mode: one-shot hai + sawal-guard — sawal kabhi photo nahi banta */
       if(photoMode){
         setPhotoMode(false);
@@ -1070,7 +1164,8 @@
       busy = true; showTyping("chat");
       askmeRoute(text, prevUserTextBefore(c)).then(function(d){
         hideTyping(); busy = false;
-        if(d && d.intent === "image" && d.prompt){ doImage(c, d.prompt); }
+        if(d && d.intent === "video" && d.prompt){ doVideo(c, d.prompt); }
+        else if(d && d.intent === "image" && d.prompt){ doImage(c, d.prompt); }
         else { var cd = candidateSubject(text); if(cd){ c.pendingSubject = cd; saveChats(); } doChat(c, null); }
       }).catch(function(){
         hideTyping(); busy = false;
