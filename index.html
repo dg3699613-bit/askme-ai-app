@@ -157,7 +157,7 @@
       .slowhint{font-size:13.5px; color:var(--ink-soft); margin-top:6px; display:none;}
       .slowhint.show{display:block;}
       /* suggestion chips — owner order 2026-11-04: chips side me (ek horizontal row, side scroll) */
-      .chips{display:flex; flex-wrap:nowrap; gap:8px; margin:6px -14px 10px 46px; padding:2px 14px 6px 0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;}
+      .chips{display:flex; flex-wrap:nowrap; gap:8px; margin:6px -14px 10px 0; padding:2px 14px 6px 0; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;}
       .chips::-webkit-scrollbar{display:none;}
       .chip{
         flex:0 0 auto; white-space:nowrap;
@@ -586,7 +586,7 @@
       msgsEl.innerHTML = "";
       var c = curChat();
       var hello = document.createElement("div"); hello.className = "msgrow ai";
-      hello.innerHTML = '<span class="avatar">'+logoSVG(34)+'</span><div class="hello">'+esc(t("hello"))+'</div>';
+      hello.innerHTML = '<div class="hello">'+esc(t("hello"))+'</div>';
       msgsEl.appendChild(hello);
       var chips = document.createElement("div"); chips.className = "chips";
       STR[state.lang].chips.forEach(function(ch){
@@ -603,13 +603,12 @@
       var wrap = document.createElement("div");
       if(m.error){
         wrap.className = "msgrow ai";
-        wrap.innerHTML = '<span class="avatar">'+logoSVG(34)+'</span><div class="bubble"><div class="errbox"><p>'+esc(t("busyText"))+'</p><button class="retrybtn">'+esc(t("retry"))+'</button></div></div>';
+        wrap.innerHTML = '<div class="bubble"><div class="errbox"><p>'+esc(t("busyText"))+'</p><button class="retrybtn">'+esc(t("retry"))+'</button></div></div>';
         wrap.querySelector(".retrybtn").addEventListener("click", function(){ retryLast(m); });
         return wrap;
       }
       wrap.className = "msgrow " + (m.role==="user" ? "user" : "ai");
       var inner = "";
-      if(m.role==="assistant") inner += '<span class="avatar">'+logoSVG(34)+'</span>';
       inner += '<div class="bubble">'+bubbleHTML(m);
       if(m.image) inner += '<button class="dlbtn">⬇ '+esc(t("downloadPhoto"))+'</button><button class="vidbtn">'+esc(t("makeVideo"))+'</button>';
       if(m.video) inner += '<button class="dlbtn viddl">'+esc(t("downloadVideo"))+'</button>';
@@ -650,7 +649,7 @@
     function showTyping(mode){
       hideTyping();
       typingRow = document.createElement("div"); typingRow.className = "msgrow ai";
-      typingRow.innerHTML = '<span class="avatar">'+logoSVG(34)+'</span><div class="bubble"><div class="typing"><i></i><i></i><i></i></div>'
+      typingRow.innerHTML = '<div class="bubble"><div class="typing"><i></i><i></i><i></i></div>'
         + '<div style="font-size:13.5px;color:var(--ink-soft);margin-top:4px;">'+esc(mode==="image" ? t("makingPhoto") : t("typing"))+'</div>'
         + '<div class="slowhint">'+esc(t("slowHint"))+'</div></div>';
       msgsEl.appendChild(typingRow); scrollDown();
@@ -683,7 +682,7 @@
       var url = lbUrl;
       $("lightbox").classList.remove("show");
       var row = document.createElement("div"); row.className = "msgrow ai";
-      row.innerHTML = '<span class="avatar">'+logoSVG(34)+'</span><div class="bubble" style="flex:1;"></div>';
+      row.innerHTML = '<div class="bubble" style="flex:1;"></div>';
       msgsEl.appendChild(row); scrollDown();
       var progress = makeProgressEl(row.querySelector(".bubble"));
       var origRemove = progress.remove;
