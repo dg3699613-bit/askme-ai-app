@@ -349,17 +349,17 @@
           <div class="rowline">
             <div>
               <label data-i18n="darkMode">Dark mode</label>
-              <div class="hint" data-i18n="darkHint">Aankhon ke liye aaramdayak</div>
+              <div class="hint" data-i18n="darkHint">Easy on the eyes</div>
             </div>
-            <button class="ghostbtn" id="themeBtn">🌙</button>
+            <button class="ghostbtn" id="themeBtn" aria-label="Dark mode"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
           </div>
           <div style="margin-top:16px;">
-            <label data-i18n="modeLabel">Jawab kahan se aaye</label>
+            <label data-i18n="modeLabel">Where answers come from</label>
             <div class="seg" id="modeSeg">
               <button data-mode="api" class="on">AskMe API</button>
-              <button data-mode="byok" data-i18n="byokMode">Apni Key (BYOK)</button>
+              <button data-mode="byok" data-i18n="byokMode">Your Key (BYOK)</button>
             </div>
-            <p class="hint" style="margin-top:8px;" data-i18n="byokHint">Optional: apni free Gemini/Groq key lagane se extra limit milti hai. Key sirf tumhare phone me rehti hai. Photo banana hamesha AskMe API se hota hai.</p>
+            <p class="hint" style="margin-top:8px;" data-i18n="byokHint">Optional: add your own free Gemini/Groq key for extra limit. The key stays only on your phone. Photos are always made by the AskMe API.</p>
           </div>
           <div id="byokFields" style="display:none; margin-top:10px;">
             <label data-i18n="provider">Provider</label>
@@ -369,9 +369,9 @@
             </select>
             <label style="display:block; margin-top:12px;">API Key</label>
             <input type="password" id="byokKey" placeholder="AIza... / gsk_..." autocomplete="off" />
-            <button class="primarybtn" id="byokSave" data-i18n="saveKey">Key save karo</button>
+            <button class="primarybtn" id="byokSave" data-i18n="saveKey">Save key</button>
           </div>
-          <button class="primarybtn" style="background:var(--saffron);" data-close-settings data-i18n="done">Ho gaya</button>
+          <button class="primarybtn" style="background:var(--saffron);" data-close-settings data-i18n="done">Done</button>
         </div>
       </div>
 
@@ -1284,13 +1284,16 @@
       }).catch(function(){ $("apiStatus").textContent = state.lang==="hi" ? "AskMe API — server so raha hai, pehle message par jaag jayega" : "AskMe API — server is sleeping, it wakes on the first message"; $("apiBadge").textContent = ""; });
     });
     document.querySelectorAll("[data-close-settings]").forEach(function(el){ el.addEventListener("click", function(){ $("settingsWrap").classList.remove("show"); }); });
+    var moonSVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    var sunSVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+    function syncThemeBtn(){ $("themeBtn").innerHTML = state.theme === "dark" ? sunSVG : moonSVG; }
     $("themeBtn").addEventListener("click", function(){
       state.theme = state.theme === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", state.theme);
-      $("themeBtn").textContent = state.theme === "dark" ? "☀️" : "🌙";
+      syncThemeBtn();
       savePref();
     });
-    $("themeBtn").textContent = state.theme === "dark" ? "☀️" : "🌙";
+    syncThemeBtn();
     /* BYOK */
     function syncModeUI(){
       document.querySelectorAll("#modeSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-mode")===state.mode); });
