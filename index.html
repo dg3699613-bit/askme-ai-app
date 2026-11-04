@@ -494,6 +494,8 @@
     try{ chats = JSON.parse(localStorage.getItem(LS_CHATS)||"[]"); }catch(e){ chats = []; }
     /* blob: video URLs never survive a reload — drop those session-only messages on load */
     chats.forEach(function(c){ if(c && c.messages){ c.messages = c.messages.filter(function(m){ return !(m.video && m.video.indexOf("blob:")===0); }); } });
+    /* Khali chats (koi baat nahi hui) storage se bhi saaf — har reopen par "New chat" ka dher na lage */
+    chats = chats.filter(function(c){ return c && c.messages && c.messages.length; });
     var currentId = null, photoMode = false, attachData = null, busy = false, lbUrl = null;
     function saveChats(){
       try{ localStorage.setItem(LS_CHATS, JSON.stringify(chats)); }
@@ -566,10 +568,13 @@
     /* ---------- Rendering ---------- */
     function renderChatList(){
       var list = $("chatList"); list.innerHTML = "";
-      if(!chats.length){ list.innerHTML = '<div class="empty">'+esc(t("noChats"))+'</div>'; return; }
-      chats.forEach(function(c){
+      /* Owner order 2026-11-04: khali chats (jinme koi baat nahi hui) list me NAHI dikhen —
+         "Baat na karo phir bhi New Chat chhap jata hai" wali shikayat ka fix */
+      var shown = chats.filter(function(c){ return c.messages && c.messages.length; });
+      if(!shown.length){ list.innerHTML = '<div class="empty">'+esc(t("noChats"))+'</div>'; return; }
+      shown.forEach(function(c){
         var b = document.createElement("button"); b.className = "chatitem" + (c.id===currentId ? " on" : "");
-        b.innerHTML = '<span class="ttl">'+esc(c.title || t("untitled"))+'</span><span class="del" title="Delete">🗑</span>';
+        b.innerHTML = '<span class="ttl">'+esc(c.title || t("untitled"))+'</span><span class="del" title="Delete"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>';
         b.addEventListener("click", function(){ currentId = c.id; renderAll(); closeDrawer(); });
         b.querySelector(".del").addEventListener("click", function(ev){
           ev.stopPropagation();
@@ -1334,7 +1339,12 @@
     function closeDrawer(){ $("drawer").classList.remove("show"); $("scrim").classList.remove("show"); }
     $("menuBtn").addEventListener("click", openDrawer);
     $("scrim").addEventListener("click", closeDrawer);
-    function startNew(){ var c = newChat(); setPhotoMode(false); renderAll(); closeDrawer(); inputEl.focus(); }
+    function startNew(){
+      var cur = curChat();
+      /* Pehle se khali chat khuli hai to dusri khali chat mat banao */
+      if(cur && cur.messages && cur.messages.length === 0){ setPhotoMode(false); renderAll(); closeDrawer(); inputEl.focus(); return; }
+      var c = newChat(); setPhotoMode(false); renderAll(); closeDrawer(); inputEl.focus();
+    }
     $("newBtn").addEventListener("click", startNew);
     $("drawerNew").addEventListener("click", startNew);
     $("gearBtn").addEventListener("click", function(){
