@@ -167,6 +167,9 @@
         font-size:14px; font-weight:600; color:var(--ink);
       }
       .chip:active{border-color:var(--saffron);}
+      .msgrow.ai{align-items:flex-end;}
+      .copybtn{flex:0 0 auto; width:30px; height:30px; display:grid; place-items:center; color:var(--ink-soft); border-radius:9px;}
+      .copybtn:active{background:var(--surface2); color:var(--saffron-dark);}
       .hello{
         background:var(--surface); border:1px solid var(--line); border-radius:20px 20px 20px 6px;
         padding:13px 15px; max-width:88%; font-size:16px; line-height:1.5;
@@ -588,16 +591,21 @@
     function renderMessages(){
       msgsEl.innerHTML = "";
       var c = curChat();
-      var hello = document.createElement("div"); hello.className = "msgrow ai";
-      hello.innerHTML = '<div class="hello">'+esc(t("hello"))+'</div>';
-      msgsEl.appendChild(hello);
-      var chips = document.createElement("div"); chips.className = "chips";
-      STR[state.lang].chips.forEach(function(ch){
-        var b = document.createElement("button"); b.className = "chip"; b.textContent = ch;
-        b.addEventListener("click", function(){ inputEl.value = ch.replace(/^\S+\s/, ""); autoGrow(); send(); });
-        chips.appendChild(b);
-      });
-      msgsEl.appendChild(chips);
+      /* Owner order 2026-11-04: chat shuru hote hi upar wala hello + chips hat jayen —
+         ye sirf khali (nayi) chat par dikhte hain */
+      var hasMsgs = !!(c && c.messages && c.messages.length);
+      if(!hasMsgs){
+        var hello = document.createElement("div"); hello.className = "msgrow ai helloRow";
+        hello.innerHTML = '<div class="hello">'+esc(t("hello"))+'</div>';
+        msgsEl.appendChild(hello);
+        var chips = document.createElement("div"); chips.className = "chips";
+        STR[state.lang].chips.forEach(function(ch){
+          var b = document.createElement("button"); b.className = "chip"; b.textContent = ch;
+          b.addEventListener("click", function(){ inputEl.value = ch.replace(/^\S+\s/, ""); autoGrow(); send(); });
+          chips.appendChild(b);
+        });
+        msgsEl.appendChild(chips);
+      }
       if(!c) return;
       c.messages.forEach(function(m){ msgsEl.appendChild(renderMsg(m)); });
       scrollDown();
@@ -626,11 +634,12 @@
       var vdl = wrap.querySelector(".viddl");
       if(vdl && m.video){ vdl.addEventListener("click", function(){ downloadVideoFile(m.video, m.videoMime); }); }
       if(m.role==="assistant" && m.text){
-        var tools = document.createElement("div"); tools.className = "msgtools";
-        tools.innerHTML = '<button>⧉ '+esc(t("copy"))+'</button>';
-        tools.querySelector("button").addEventListener("click", function(){ copyText(m.text); });
-        var holder = document.createElement("div"); holder.appendChild(wrap); holder.appendChild(tools);
-        var frag = document.createDocumentFragment(); frag.appendChild(holder); return holder;
+        /* Owner order 2026-11-04: Copy ka option jawab ke aage (usi line me, side par) rahe —
+           niche alag line par nahi */
+        var cb = document.createElement("button"); cb.className = "copybtn"; cb.setAttribute("aria-label", t("copy"));
+        cb.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        cb.addEventListener("click", function(){ copyText(m.text); });
+        wrap.appendChild(cb);
       }
       return wrap;
     }
@@ -1042,7 +1051,13 @@
       sendQueue.shift();
       routeUserText(c, item.text);
     }
-    function pushMsg(c, m){ c.messages.push(m); msgsEl.appendChild(renderMsg(m)); scrollDown(); saveChats(); }
+    function pushMsg(c, m){
+      if(m.role === "user"){
+        var hr = msgsEl.querySelector(".helloRow"); if(hr) hr.remove();
+        var chEl = msgsEl.querySelector(".chips"); if(chEl) chEl.remove();
+      }
+      c.messages.push(m); msgsEl.appendChild(renderMsg(m)); scrollDown(); saveChats();
+    }
     function setTitle(c){ if(!c.title){ var f = c.messages.find(function(m){ return m.role==="user" && m.text; }); if(f) c.title = f.text.slice(0, 42); } }
 
     function doChat(c, attach){
