@@ -516,7 +516,7 @@
     var msgsEl = $("msgs"), inputEl = $("input"), sendBtn = $("sendBtn"), toastEl = $("toast");
     var toastTimer = null;
     function toast(s){ toastEl.textContent = s; toastEl.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2600); }
-    function scrollDown(){ requestAnimationFrame(function(){ msgsEl.scrollTop = msgsEl.scrollHeight; }); }
+    function scrollDown(){ requestAnimationFrame(function(){ var pb = msgsEl.style.scrollBehavior; msgsEl.style.scrollBehavior = "auto"; msgsEl.scrollTop = msgsEl.scrollHeight; msgsEl.style.scrollBehavior = pb; }); }
 
     /* ---------- Markdown (small, safe renderer) ---------- */
     function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -819,9 +819,11 @@
         var c = curChat();
         if(c){ pushMsg(c, { role:"assistant", video: res.url, videoMime: res.mime }); }
         toast(t("videoReady"));
+        pumpQueue();
       }).catch(function(){
         videoBusy = false; progress.remove();
         toast(t("videoFailed"));
+        pumpQueue();
       });
     }
     function startVideoFromPhoto(imageUrl, btn){
@@ -1020,7 +1022,16 @@
 
     /* ============ Send flow ============ */
     var lastAction = null; /* {type:'chat'} | {type:'image', prompt} */
-    function pushMsg(c, m){ c.messages.push(m); saveChats(); msgsEl.appendChild(renderMsg(m)); scrollDown(); }
+    var sendQueue = []; /* busy hote hue bheje gaye messages — bubble turant upar, kaam line se */
+    function pumpQueue(){
+      if(busy || videoBusy || !sendQueue.length) return;
+      var item = sendQueue[0];
+      var c = chats.find(function(x){ return x.id===item.chatId; });
+      if(!c || c.id !== currentId) return; /* chat badal gayi ho to line wahin ruke */
+      sendQueue.shift();
+      routeUserText(c, item.text);
+    }
+    function pushMsg(c, m){ c.messages.push(m); msgsEl.appendChild(renderMsg(m)); scrollDown(); saveChats(); }
     function setTitle(c){ if(!c.title){ var f = c.messages.find(function(m){ return m.role==="user" && m.text; }); if(f) c.title = f.text.slice(0, 42); } }
 
     function doChat(c, attach){
@@ -1030,9 +1041,11 @@
       p.then(function(reply){
         hideTyping(); busy = false;
         pushMsg(c, { role:"assistant", text: reply });
+        pumpQueue();
       }).catch(function(){
         hideTyping(); busy = false;
         pushMsg(c, { role:"assistant", error:true });
+        pumpQueue();
       });
     }
     function doImage(c, prompt){
@@ -1043,11 +1056,13 @@
         c.pendingSubject = "";
         pushMsg(c, { role:"assistant", image: url, imgPrompt: prompt });
         saveChats();
+        pumpQueue();
       }).catch(function(){
         hideTyping(); busy = false;
         c.pendingSubject = prompt; /* affirmation / retry can fulfil it */
         saveChats();
         pushMsg(c, { role:"assistant", error:true });
+        pumpQueue();
       });
     }
     function doVideo(c, prompt){
@@ -1068,6 +1083,7 @@
         c.pendingVideoSubject = prompt; /* "ha banao" par yahi video phir banega */
         saveChats();
         pushMsg(c, { role:"assistant", error:true });
+        pumpQueue();
       });
     }
     function retryLast(errMsg){
@@ -1084,13 +1100,13 @@
     }
 
     function send(){
-      if(busy) return;
       var text = inputEl.value.trim();
       var c = curChat(); if(!c) c = newChat();
       if(!text && !attachData) return;
 
       /* Attached photo */
       if(attachData){
+        if(busy) return;
         var att = attachData; attachData = null; updateAttachUI();
         if(state.mode==="byok" && state.byokKey && state.byokProvider==="gemini"){
           pushMsg(c, { role:"user", text: text, attach: att });
@@ -1108,12 +1124,21 @@
       pushMsg(c, { role:"user", text: text });
       inputEl.value = ""; autoGrow(); setTitle(c); renderChatList();
 
+      /* Kaam chal raha ho to message gayab nahi hoga: bubble upar aa gaya hai,
+         kaam khatam hote hi pumpQueue is par kaam shuru kar dega. */
+      if(busy){ sendQueue.push({ chatId: c.id, text: text }); saveChats(); return; }
+
+      routeUserText(c, text);
+    }
+
+    function routeUserText(c, text){
       /* 0a) Video ki maang — hamesha asal video flow, kabhi sirf text ka wada nahi */
       var vr = parseVideoRequest(text);
       if(vr && vr.kind === "video"){ doVideo(c, vr.prompt); return; }
       if(vr && vr.kind === "video-need-topic"){
         c.awaitingVideoTopic = true; saveChats();
         pushMsg(c, { role:"assistant", text: t("videoAskTopic") });
+        pumpQueue();
         return;
       }
       /* 0b) Pichhle step me video ka topic manga gaya tha — ye message wahi topic hai */
@@ -1173,6 +1198,7 @@
         doChat(c, null);
       });
     }
+
     function prevUserTextBefore(c){
       /* the user message before the one just sent */
       var users = c.messages.filter(function(m){ return m.role==="user"; });
