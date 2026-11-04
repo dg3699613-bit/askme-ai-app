@@ -128,6 +128,21 @@
         font-weight:700; font-size:15.5px;
       }
       .dlbtn:active{background:var(--saffron-dark);}
+      .vidbtn{
+        display:flex; align-items:center; justify-content:center; gap:8px; width:100%; max-width:420px;
+        margin-top:8px; padding:12px; border-radius:13px; background:var(--teal); color:#fff;
+        font-weight:700; font-size:15.5px;
+      }
+      .vidbtn:active{background:var(--teal-deep);}
+      .vidbtn:disabled{opacity:.55;}
+      .bubble video.genvideo{
+        display:block; width:100%; max-width:420px; border-radius:14px; margin:2px 0 4px;
+        background:#000;
+      }
+      .videoprogress{margin-top:10px; max-width:420px;}
+      .videoprogress .vp-label{font-size:14px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+      .videoprogress .vp-track{height:10px; border-radius:999px; background:var(--surface2); border:1px solid var(--line); overflow:hidden;}
+      .videoprogress .vp-fill{height:100%; width:0%; background:var(--saffron); border-radius:999px; transition:width .2s linear;}
       .errbox{
         border:1.5px dashed var(--saffron-dark); background:var(--surface2); border-radius:14px; padding:12px 14px;
       }
@@ -362,6 +377,7 @@
         <div class="lbimg"><img id="lbImg" alt="AskMe photo" /></div>
         <div class="lbactions">
           <button class="dlbtn" id="lbDownload">⬇ <span data-i18n="downloadPhoto">Photo Download karo</span></button>
+          <button class="vidbtn" id="lbVideo" style="max-width:none; margin:0;"><span data-i18n="makeVideo">🎬 10 sec Video banao</span></button>
           <a class="fulllink" id="lbFull" href="#" target="_blank" rel="noopener"><span data-i18n="fullSize">Full size kholo</span> ↗</a>
           <div class="lbhint" data-i18n="lbHint">Photo ko long-press karke “Download image” bhi kar sakte ho.</div>
         </div>
@@ -396,13 +412,17 @@
 
     /* ---------- i18n ---------- */
     var STR = {
-      hi:{ photoMode:"Photo banao", photoAttached:"Photo laga diya", placeholder:"AskMe से कुछ भी पूछो...",
+      hi:{ photoMode:"Photo banao", photoAttached:"Photo laga diya", placeholder:"AskMe से कुछ भी पूछो...", photoPlaceholder:"Photo ke liye likho — jo likhoge, usi ki photo banegi…", photoModeOffQ:"Ye sawal tha — photo mode band karke jawab de raha hoon",
         newChat:"Nayi Chat", yourChats:"Tumhari chats", noChats:"Abhi koi chat nahi hai",
         settings:"Settings", model:"Model", darkMode:"Dark mode", darkHint:"Aankhon ke liye aaramdayak",
         modeLabel:"Jawab kahan se aaye", byokMode:"Apni Key (BYOK)",
         byokHint:"Optional: apni free Gemini/Groq key lagane se extra limit milti hai. Key sirf tumhare phone me rehti hai. Photo banana hamesha AskMe API se hota hai.",
         provider:"Provider", saveKey:"Key save karo", done:"Ho gaya",
-        downloadPhoto:"Photo Download karo", fullSize:"Full size kholo",
+        downloadPhoto:"Photo Download karo", makeVideo:"🎬 10 sec Video banao", downloadVideo:"⬇ Video Download karo",
+        videoMaking:"Video ban raha hai… ", videoReady:"Video taiyaar hai ✓",
+        videoUnsupported:"Is phone par video banana support nahi hai — video is not supported on this phone.",
+        videoFailed:"Video nahi ban paya — phir se try karo 🙏",
+        fullSize:"Full size kholo",
         lbHint:"Photo ko long-press karke “Download image” bhi kar sakte ho.",
         welcomeSub:"Kuch bhi poochho — Hindi, Hinglish ya English me. Photo banana ho to bas likh do, photo yahin ban jayegi.",
         copy:"Copy karo", copied:"Copy ho gaya ✓", retry:"Phir se try karo",
@@ -419,13 +439,17 @@
         untitled:"Nayi chat",
         chips:["🐒 Bandar ka photo bana do","📖 Bachon ke liye ek kahani sunao","🌦 Kal mausam kaisa rahega?","💡 Time management ke tips do"]
       },
-      en:{ photoMode:"Photo banao", photoAttached:"Photo attached", placeholder:"Ask AskMe anything...",
+      en:{ photoMode:"Photo banao", photoAttached:"Photo attached", placeholder:"Ask AskMe anything...", photoPlaceholder:"Write for a photo — your message becomes the photo…", photoModeOffQ:"That was a question — photo mode off, answering instead",
         newChat:"New Chat", yourChats:"Your chats", noChats:"No chats yet",
         settings:"Settings", model:"Model", darkMode:"Dark mode", darkHint:"Easy on the eyes",
         modeLabel:"Where answers come from", byokMode:"Your Key (BYOK)",
         byokHint:"Optional: add your own free Gemini/Groq key for extra limit. The key stays only on your phone. Photos are always made by the AskMe API.",
         provider:"Provider", saveKey:"Save key", done:"Done",
-        downloadPhoto:"Download photo", fullSize:"Open full size",
+        downloadPhoto:"Download photo", makeVideo:"🎬 Make 10-sec video", downloadVideo:"⬇ Download video",
+        videoMaking:"Making video… ", videoReady:"Video is ready ✓",
+        videoUnsupported:"Is phone par video banana support nahi hai — video is not supported on this phone.",
+        videoFailed:"Video could not be made — please try again 🙏",
+        fullSize:"Open full size",
         lbHint:"You can also long-press the photo and choose “Download image”.",
         welcomeSub:"Ask anything — in Hindi, Hinglish or English. Want a photo? Just say it, and the photo will be made right here.",
         copy:"Copy", copied:"Copied ✓", retry:"Try again",
@@ -454,6 +478,8 @@
 
     var chats = [];
     try{ chats = JSON.parse(localStorage.getItem(LS_CHATS)||"[]"); }catch(e){ chats = []; }
+    /* blob: video URLs never survive a reload — drop those session-only messages on load */
+    chats.forEach(function(c){ if(c && c.messages){ c.messages = c.messages.filter(function(m){ return !(m.video && m.video.indexOf("blob:")===0); }); } });
     var currentId = null, photoMode = false, attachData = null, busy = false, lbUrl = null;
     function saveChats(){
       try{ localStorage.setItem(LS_CHATS, JSON.stringify(chats)); }
@@ -539,6 +565,7 @@
       var h = "";
       if(m.attach) h += '<img class="attachimg" src="'+m.attach+'" alt="" />';
       if(m.image) h += '<img class="genimg" src="'+m.image+'" alt="AskMe photo" data-genimg="1" />';
+      if(m.video) h += '<video class="genvideo" src="'+m.video+'" controls playsinline preload="metadata"></video>';
       if(m.text) h += (m.role==="assistant" ? md(m.text) : "<p>"+esc(m.text)+"</p>");
       return h;
     }
@@ -571,13 +598,18 @@
       var inner = "";
       if(m.role==="assistant") inner += '<span class="avatar">'+logoSVG(34)+'</span>';
       inner += '<div class="bubble">'+bubbleHTML(m);
-      if(m.image) inner += '<button class="dlbtn">⬇ '+esc(t("downloadPhoto"))+'</button>';
+      if(m.image) inner += '<button class="dlbtn">⬇ '+esc(t("downloadPhoto"))+'</button><button class="vidbtn">'+esc(t("makeVideo"))+'</button>';
+      if(m.video) inner += '<button class="dlbtn viddl">'+esc(t("downloadVideo"))+'</button>';
       inner += '</div>';
       wrap.innerHTML = inner;
       var img = wrap.querySelector("[data-genimg]");
       if(img){ img.addEventListener("click", function(){ openLightbox(m.image); }); }
-      var dl = wrap.querySelector(".dlbtn");
-      if(dl){ dl.addEventListener("click", function(){ downloadImage(m.image); }); }
+      var dl = wrap.querySelector(".dlbtn:not(.viddl)");
+      if(dl && m.image){ dl.addEventListener("click", function(){ downloadImage(m.image); }); }
+      var vb = wrap.querySelector(".vidbtn");
+      if(vb && m.image){ vb.addEventListener("click", function(){ startVideoFromPhoto(m.image, vb); }); }
+      var vdl = wrap.querySelector(".viddl");
+      if(vdl && m.video){ vdl.addEventListener("click", function(){ downloadVideoFile(m.video, m.videoMime); }); }
       if(m.role==="assistant" && m.text){
         var tools = document.createElement("div"); tools.className = "msgtools";
         tools.innerHTML = '<button>⧉ '+esc(t("copy"))+'</button>';
@@ -633,11 +665,170 @@
     }
     $("lbClose").addEventListener("click", function(){ $("lightbox").classList.remove("show"); });
     $("lbDownload").addEventListener("click", function(){ if(lbUrl) downloadDirect(lbUrl); });
+    $("lbVideo").addEventListener("click", function(){
+      if(!lbUrl || videoBusy) return;
+      var url = lbUrl;
+      $("lightbox").classList.remove("show");
+      var row = document.createElement("div"); row.className = "msgrow ai";
+      row.innerHTML = '<span class="avatar">'+logoSVG(34)+'</span><div class="bubble" style="flex:1;"></div>';
+      msgsEl.appendChild(row); scrollDown();
+      var progress = makeProgressEl(row.querySelector(".bubble"));
+      var origRemove = progress.remove;
+      progress.remove = function(){ row.remove(); origRemove(); };
+      startVideoGeneration(url, progress);
+    });
     function downloadDirect(url){
       if(url.indexOf("data:")===0){ triggerDownload(url); toast(t("dlStarted")); return; }
       fetch(url, { mode:"cors" }).then(function(r){ return r.blob(); }).then(function(b){
         var ou = URL.createObjectURL(b); triggerDownload(ou); setTimeout(function(){ URL.revokeObjectURL(ou); }, 4000); toast(t("dlStarted"));
       }).catch(function(){ window.open(url, "_blank"); });
+    }
+
+    /* ============ Photo -> 10-sec video (entirely on-device) ============ */
+    function videoSupported(){
+      try{
+        return !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream && typeof MediaRecorder.isTypeSupported === "function");
+      }catch(e){ return false; }
+    }
+    function pickVideoMime(){
+      var cands = ["video/mp4", 'video/mp4;codecs="avc1.42E01E,mp4a.40.2"', "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+      for(var i=0;i<cands.length;i++){ try{ if(MediaRecorder.isTypeSupported(cands[i])) return cands[i]; }catch(e){} }
+      return "";
+    }
+    function downloadVideoFile(url, mime){
+      if(!url) return;
+      var ext = (mime && mime.indexOf("mp4")>=0) ? "mp4" : "webm";
+      var name = "askme-video." + ext;
+      /* Same download path as photos: blob download in browsers;
+         in the APK WebView a blob: URL falls back to opening the video full-screen. */
+      if(url.indexOf("blob:")===0 || url.indexOf("data:")===0){
+        if(isEmbedded() && url.indexOf("blob:")===0){
+          /* WebView: try the anchor download first; the video stays playable inline/full-screen as fallback */
+          triggerDownload(url, name); toast(t("dlStarted")); return;
+        }
+        triggerDownload(url, name); toast(t("dlStarted")); return;
+      }
+      if(isEmbedded()){ window.open(url, "_blank"); return; }
+      fetch(url, { mode:"cors" }).then(function(r){ if(!r.ok) throw 0; return r.blob(); }).then(function(b){
+        var ou = URL.createObjectURL(b); triggerDownload(ou, name); setTimeout(function(){ URL.revokeObjectURL(ou); }, 4000);
+        toast(t("dlStarted"));
+      }).catch(function(){ window.open(url, "_blank"); });
+    }
+    function loadVideoSourceImage(url){
+      return new Promise(function(resolve, reject){
+        function fromSrc(src, revoke){
+          var im = new Image();
+          im.onload = function(){ resolve({ img: im, revoke: revoke }); };
+          im.onerror = function(){ if(revoke) URL.revokeObjectURL(revoke); reject(new Error("imgload")); };
+          im.src = src;
+        }
+        if(url.indexOf("data:")===0 || url.indexOf("blob:")===0){ fromSrc(url, null); return; }
+        /* Fetch as blob first so the canvas is never tainted by cross-origin rules */
+        fetch(url, { mode:"cors" }).then(function(r){ if(!r.ok) throw 0; return r.blob(); }).then(function(b){
+          var ou = URL.createObjectURL(b); fromSrc(ou, ou);
+        }).catch(function(){
+          var im = new Image(); im.crossOrigin = "anonymous";
+          im.onload = function(){ resolve({ img: im, revoke: null }); };
+          im.onerror = function(){ reject(new Error("imgload")); };
+          im.src = url;
+        });
+      });
+    }
+    function makeProgressEl(host){
+      var box = document.createElement("div"); box.className = "videoprogress";
+      box.innerHTML = '<div class="vp-label"></div><div class="vp-track"><div class="vp-fill"></div></div>';
+      host.appendChild(box); scrollDown();
+      var label = box.querySelector(".vp-label"), fill = box.querySelector(".vp-fill");
+      return {
+        el: box,
+        update: function(pct){ label.textContent = t("videoMaking") + pct + "%"; fill.style.width = pct + "%"; },
+        remove: function(){ box.remove(); }
+      };
+    }
+    function generateVideo(imageUrl, onProgress){
+      return loadVideoSourceImage(imageUrl).then(function(loaded){
+        return new Promise(function(resolve, reject){
+          var img = loaded.img;
+          var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+          if(!iw || !ih){ if(loaded.revoke) URL.revokeObjectURL(loaded.revoke); reject(new Error("badimg")); return; }
+          var cap = 1280, sc = Math.min(1, cap / Math.max(iw, ih));
+          var W = Math.max(2, Math.round(iw * sc / 2) * 2), H = Math.max(2, Math.round(ih * sc / 2) * 2);
+          var cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+          var ctx = cv.getContext("2d");
+          var mime = pickVideoMime();
+          var stream;
+          try{ stream = cv.captureStream(30); }catch(e){ if(loaded.revoke) URL.revokeObjectURL(loaded.revoke); reject(e); return; }
+          var rec;
+          try{ rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 }) : new MediaRecorder(stream); }
+          catch(e){ if(loaded.revoke) URL.revokeObjectURL(loaded.revoke); reject(e); return; }
+          var outMime = (rec.mimeType || mime || "video/webm").split(";")[0];
+          var chunks = [];
+          rec.ondataavailable = function(ev){ if(ev.data && ev.data.size) chunks.push(ev.data); };
+          rec.onstop = function(){
+            if(loaded.revoke) URL.revokeObjectURL(loaded.revoke);
+            if(!chunks.length){ reject(new Error("empty")); return; }
+            var blob = new Blob(chunks, { type: outMime });
+            resolve({ url: URL.createObjectURL(blob), mime: outMime });
+          };
+          rec.onerror = function(){ if(loaded.revoke) URL.revokeObjectURL(loaded.revoke); reject(new Error("rec")); };
+          var DURATION = 10000, start = null, raf = 0;
+          function frame(ts){
+            if(start === null) start = ts;
+            var el = ts - start, p = Math.min(1, el / DURATION);
+            /* Ken Burns: slow zoom 1.0 -> 1.15 with a gentle diagonal pan */
+            var scale = 1 + 0.15 * p;
+            var dw = W * scale, dh = H * scale;
+            var panX = (p - 0.5) * W * 0.045, panY = (p - 0.5) * H * 0.03;
+            ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+            ctx.drawImage(img, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh);
+            onProgress(Math.floor(p * 100));
+            if(p < 1){ raf = requestAnimationFrame(frame); }
+          }
+          rec.start(250);
+          raf = requestAnimationFrame(frame);
+          setTimeout(function(){
+            cancelAnimationFrame(raf);
+            /* one final frame at full zoom, then stop at exactly 10s */
+            var dw2 = W * 1.15, dh2 = H * 1.15;
+            ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+            ctx.drawImage(img, (W - dw2) / 2 + W * 0.0225, (H - dh2) / 2 + H * 0.015, dw2, dh2);
+            onProgress(100);
+            try{ if(rec.state !== "inactive") rec.stop(); }catch(e){ reject(e); }
+          }, DURATION);
+        });
+      });
+    }
+    var videoBusy = false;
+    function startVideoGeneration(imageUrl, progress){
+      if(videoBusy) return;
+      if(!videoSupported()){
+        progress.remove();
+        var c0 = curChat();
+        if(c0) pushMsg(c0, { role:"assistant", text: t("videoUnsupported") });
+        toast(t("videoUnsupported"));
+        return;
+      }
+      videoBusy = true;
+      progress.update(0);
+      generateVideo(imageUrl, function(pct){ progress.update(pct); }).then(function(res){
+        videoBusy = false; progress.remove();
+        var c = curChat();
+        if(c){ pushMsg(c, { role:"assistant", video: res.url, videoMime: res.mime }); }
+        toast(t("videoReady"));
+      }).catch(function(){
+        videoBusy = false; progress.remove();
+        toast(t("videoFailed"));
+      });
+    }
+    function startVideoFromPhoto(imageUrl, btn){
+      if(videoBusy) return;
+      var bubble = btn.closest ? btn.closest(".bubble") : null;
+      btn.disabled = true;
+      var progress = makeProgressEl(bubble || msgsEl);
+      /* re-enable the originating button when done by watching videoBusy via the progress lifecycle */
+      var origRemove = progress.remove;
+      progress.remove = function(){ btn.disabled = false; origRemove(); };
+      startVideoGeneration(imageUrl, progress);
     }
 
     /* ============ Intent routing ============ */
@@ -681,6 +872,21 @@
       if(!CREATE_VERBS.test(text) || TEXT_ARTIFACTS.test(text)) return "";
       var subj = extractSubject(text);
       return subj && subj.length >= 2 ? subj : "";
+    }
+
+    /* Sawal-guard: a plain question must NEVER become a photo (2026-11-04 bug:
+       photo-mode me "Aaj kis kis ka match hai?" bhejnewale ko random photo mila).
+       Asli photo ki maang (photo + banane wala shabd saath me) sawal nahi hai. */
+    var QUESTION_RE = /(\?\s*$)|(\b(kya|kis|kiska|kiski|kiske|kisne|kisko|kaun|kaunsa|konsa|konsi|kab|kahan|kidhar|kyun|kyon|kitna|kitne|kitni|kaise|kaisa|kaisi)\b)|(\b(what|why|when|where|who|whom|which|whose|how)\b)|(क्या|किस|किसका|किसकी|कौन|कौनसा|कब|कहाँ|क्यों|कितना|कितने|कितनी|कैसे|कैसी)/i;
+    function isQuestion(text){
+      var q = text.trim();
+      if(IMG_NOUNS.test(q) && CREATE_VERBS.test(q)) return false;
+      return QUESTION_RE.test(q) || q.indexOf("?") >= 0 || q.indexOf("？") >= 0;
+    }
+    function setPhotoMode(v){
+      photoMode = v;
+      $("photoToggle").classList.toggle("on", v);
+      inputEl.placeholder = v ? t("photoPlaceholder") : t("placeholder");
     }
 
     /* ============ API calls ============ */
@@ -834,8 +1040,12 @@
       pushMsg(c, { role:"user", text: text });
       inputEl.value = ""; autoGrow(); setTitle(c); renderChatList();
 
-      /* 0) Photo-mode toggle forces image */
-      if(photoMode){ doImage(c, text); return; }
+      /* 0) Photo-mode: one-shot hai + sawal-guard — sawal kabhi photo nahi banta */
+      if(photoMode){
+        setPhotoMode(false);
+        if(!isQuestion(text)){ doImage(c, text); return; }
+        toast(t("photoModeOffQ"));
+      }
 
       /* 1) Follow-up affirmation on a pending photo subject */
       if(c.pendingSubject && isAffirmation(text)){ doImage(c, c.pendingSubject); return; }
@@ -846,6 +1056,13 @@
       if(r.kind === "chat"){
         var cand = candidateSubject(text);
         if(cand) { c.pendingSubject = cand; saveChats(); }
+        doChat(c, null); return;
+      }
+
+      /* 2b) Sawal hai to router ke paas bhi nahi — seedha chat */
+      if(isQuestion(text)){
+        var cq = candidateSubject(text);
+        if(cq){ c.pendingSubject = cq; saveChats(); }
         doChat(c, null); return;
       }
 
@@ -873,7 +1090,7 @@
     inputEl.addEventListener("keydown", function(e){ if(e.key==="Enter" && !e.shiftKey && window.innerWidth > 700){ e.preventDefault(); send(); } });
     sendBtn.addEventListener("click", send);
     $("photoToggle").addEventListener("click", function(){
-      photoMode = !photoMode; $("photoToggle").classList.toggle("on", photoMode);
+      setPhotoMode(!photoMode);
       inputEl.focus();
     });
     $("attachBtn").addEventListener("click", function(){ $("fileInput").click(); });
@@ -923,7 +1140,7 @@
     function closeDrawer(){ $("drawer").classList.remove("show"); $("scrim").classList.remove("show"); }
     $("menuBtn").addEventListener("click", openDrawer);
     $("scrim").addEventListener("click", closeDrawer);
-    function startNew(){ var c = newChat(); photoMode = false; $("photoToggle").classList.remove("on"); renderAll(); closeDrawer(); inputEl.focus(); }
+    function startNew(){ var c = newChat(); setPhotoMode(false); renderAll(); closeDrawer(); inputEl.focus(); }
     $("newBtn").addEventListener("click", startNew);
     $("drawerNew").addEventListener("click", startNew);
     $("gearBtn").addEventListener("click", function(){
