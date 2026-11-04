@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="hi">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -280,7 +280,7 @@
             <div class="brand-tag">सवाल आपका, जवाब हमारा।</div>
           </div>
         </div>
-        <div class="langtoggle" role="group" aria-label="Language">
+        <div class="langtoggle" role="group" aria-label="Language" style="display:none">
           <button id="langHi" class="on">हिंदी</button>
           <button id="langEn">EN</button>
         </div>
@@ -389,7 +389,7 @@
         <div class="big-name">Ask<span class="me">Me</span> AI</div>
         <div class="tagline">सवाल आपका, जवाब हमारा।</div>
         <p class="sub" data-i18n="welcomeSub">Kuch bhi poochho — Hindi, Hinglish ya English me. Photo banana ho to bas likh do, photo yahin ban jayegi.</p>
-        <button class="startbtn" id="startBtn">AskMe शुरू करो</button>
+        <button class="startbtn" id="startBtn">Start AskMe</button>
       </div>
 
       <div class="toast" id="toast"></div>
@@ -455,7 +455,7 @@
         videoStarting:"Making your video — first the photo, then a 10-sec video from it. This can take a moment 🎬",
         fullSize:"Open full size",
         lbHint:"You can also long-press the photo and choose “Download image”.",
-        welcomeSub:"Ask anything — in Hindi, Hinglish or English. Want a photo? Just say it, and the photo will be made right here.",
+        welcomeSub:"Ask anything — AskMe replies in the same language you write in. Want a photo or a 10-sec video? Just say it, and it will be made right here.",
         copy:"Copy", copied:"Copied ✓", retry:"Try again",
         busyText:"The server is a little busy or waking up — wait a minute and try again. Your question is safe, just tap “Try again”. 🙏",
         slowHint:"Server is waking up… please be patient 🙏",
@@ -474,8 +474,11 @@
     function t(k){ return STR[state.lang][k] || STR.hi[k] || k; }
 
     /* ---------- State ---------- */
-    var state = { lang:"hi", theme:null, mode:"api", byokProvider:"gemini", byokKey:"", welcomed:false };
+    var state = { lang:"en", theme:null, mode:"api", byokProvider:"gemini", byokKey:"", welcomed:false };
     try{ var p = JSON.parse(localStorage.getItem(LS_PREF)||"{}"); Object.assign(state, p); }catch(e){}
+    /* Owner order 2026-11-04: pura system English only — purani saved Hindi setting bhi English ho jaye */
+    try{ if(!localStorage.getItem("askme_pub_en_only_v1")){ state.lang = "en"; localStorage.setItem("askme_pub_en_only_v1", "1"); } }catch(e){}
+    state.lang = "en";
     if(!state.theme){ state.theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
     document.documentElement.setAttribute("data-theme", state.theme);
     function savePref(){ try{ localStorage.setItem(LS_PREF, JSON.stringify(state)); }catch(e){} }
